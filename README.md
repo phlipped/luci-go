@@ -8,6 +8,8 @@ luci-go: LUCI services and tools in Go
 Installing
 ----------
 
+[Install go](https://golang.org/doc/install), set `$GOROOT` and `$GOPATH`, add `$GOROOT/bin:$GOPATH/bin` to your `$PATH`, then run;
+
     go get -u github.com/luci/luci-go/client/cmd/...
     go get -u github.com/luci/luci-go/server/cmd/...
 
