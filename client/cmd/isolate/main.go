@@ -24,6 +24,7 @@ var application = &subcommands.DefaultApplication{
 	// Keep in alphabetical order of their name.
 	Commands: []*subcommands.Command{
 		cmdArchive,
+		cmdFastArchive,
 		cmdBatchArchive,
 		cmdCheck,
 		subcommands.CmdHelp,
