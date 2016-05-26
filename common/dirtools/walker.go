@@ -15,111 +15,44 @@ package dirtools
 
 import (
 	"os"
-	"io"
 	"path/filepath"
-	"sort"
+    "io/ioutil"
 )
 
-//const BLOCKSIZE = 1024*64	// 64kbytes
-const BLOCKSIZE = 1024*64
+/**
+ SmallFile and LargeFile must be called in sorted order.
+ */
+type WalkObserver interface {
+	SmallFile(filename string, alldata []byte)
+	LargeFile(filename string)
 
-type SmallFile struct {
-	name string
-	data []byte
+	//StartDir(dirname string) error
+	//FinishDir(dirname string)
+
+	Error(pathname string, err error)
 }
-type SmallFileByName []SmallFile
-func (a SmallFileByName) Len() int { return len(a) }
-func (a SmallFileByName) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a SmallFileByName) Less(i, j int) bool { return a[i].name < a[j].name }
 
-/*
-type LargeFile struct {
-	name string
-}
-type LargeFileByName []LargeFile
-func (a LargeFileByName) Len() int { return len(a) }
-func (a LargeFileByName) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a LargeFileByName) Less(i, j int) bool { return a[i].name < a[j].name }
-*/
-
-type EntryError struct {
-	Name string
-	Err error
-}
-type EntryErrorByName []EntryError
-func (a EntryErrorByName) Len() int { return len(a) }
-func (a EntryErrorByName) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a EntryErrorByName) Less(i, j int) bool { return a[i].Name < a[j].Name }
-
-type SmallFileFunc func(fname string, data []byte)
-type LargeFileFunc func(fname string)
-
-func FastWalk(base string, files []string, smallfile_callback SmallFileFunc, largefile_callback LargeFileFunc) []EntryError {
-	var errors []EntryError
-	var smallfiles []SmallFile
-	var largefiles []string
-	var dirs []EntryError
-
-	for _, name := range files {
-		fname := filepath.Join(base, name)
-		file, err := os.Open(fname)
-
+func SlowWalk(root string, smallfile_limit int64, obs WalkObserver) {
+	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			errors = append(errors, EntryError{fname, err})
-			continue
+			obs.Error(path, err)
+			return nil
 		}
 
-		block := make([]byte, BLOCKSIZE)
-		count, err := file.Read(block)
-		if err != io.EOF  && err != nil {
-			// Its probably a directory
-			dirs = append(dirs, EntryError{fname, err})
-			continue
-		}
-
-		// This file was bigger than the block size, stat it
-		if count == BLOCKSIZE {
-			/*
-			stat, err := file.Stat()
+		if info.Size() < smallfile_limit {
+			data, err := ioutil.ReadFile(path)
 			if err != nil {
-				errors = append(errors, EntryError{fname, err})
-				continue
+				obs.Error(path, err)
+				return nil
 			}
-			*/
-			largefiles = append(largefiles, fname) //LargeFile{name: fname, stat: &stat})
-
-		// This file was smaller than the block size
+			if int64(len(data)) != info.Size() {
+				panic("file size was wrong!")
+			}
+			obs.SmallFile(path, data)
 		} else {
-			smallfiles = append(smallfiles, SmallFile{name: fname, data: block[:count]})
+			obs.LargeFile(path)
 		}
-		file.Close()
-	}
-
-	sort.Sort(SmallFileByName(smallfiles))
-	for _, f := range smallfiles {
-		smallfile_callback(f.name, f.data)
-	}
-
-	sort.Strings(largefiles)
-	for _, fname := range largefiles {
-		largefile_callback(fname)
-	}
-
-	sort.Sort(EntryErrorByName(dirs))
-	for _, d := range dirs {
-		file, err := os.Open(d.Name)
-		if err != nil {
-			errors = append(errors, EntryError{d.Name, err})
-			continue
-		}
-
-		names, err := file.Readdirnames(0)
-		if err != nil {
-			errors = append(errors, d)
-			continue
-		}
-		FastWalk(d.Name, names, smallfile_callback, largefile_callback)
-	}
-
-	return errors
+		return nil
+	})
 }
+

@@ -45,7 +45,7 @@ type ToPush struct {
 	source ReadSeekerCloser
 }
 
-func HashFile(is isolatedclient.IsolateServer, src <-chan *ToHash, dst chan<- *ToCheck) {
+func HashFile(is isolatedclient.IsolateServer, _ common.Canceler, src <-chan *ToHash, dst chan<- *ToCheck) {
 	for tohash := range src {
 		fmt.Printf("hashing %s\n", tohash.path)
 		d, _ := isolated.HashFile(tohash.path)
@@ -162,7 +162,7 @@ func NewSmallFilesCollection(index int) *SmallFilesCollection {
 }
 
 func (b SmallFilesCollection) RequestCheck(dst chan<- *ToCheck) {
-	fmt.Printf("rotating smallfilescollection-%d\n", b.index)
+	fmt.Printf("rotating smallfilescollection-%d (%d bytes)\n", b.index, b.buffer.Len())
 	dst <- &ToCheck{
 		digest: isolateservice.HandlersEndpointsV1Digest{
 			Digest: string(isolated.Sum(b.hash)),
@@ -175,7 +175,43 @@ func (b SmallFilesCollection) RequestCheck(dst chan<- *ToCheck) {
 }
 //
 
-const SMALLFILES_MAXSIZE = 1024*1024*100 // 100MBytes
+const SMALLFILES_MAXSIZE = 1024 * 64 // 64kbytes
+const SMALLFILES_AR_MAXSIZE = 1024*1024*100 // 100MBytes
+
+type SmallFilesWalkObserver struct {
+	trim string
+	chck_chan chan<- *ToCheck
+	smallfiles_buffer *SmallFilesCollection
+	largefiles_queue []string
+}
+
+func NewSmallFilesWalkObserver(trim string, chck_chan chan<- *ToCheck) *SmallFilesWalkObserver {
+	return &SmallFilesWalkObserver{
+		trim: trim,
+		chck_chan: chck_chan,
+		smallfiles_buffer: NewSmallFilesCollection(0),
+		largefiles_queue: make([]string, 0),
+	}
+}
+
+func (s *SmallFilesWalkObserver) SmallFile(name string, alldata []byte) {
+	s.smallfiles_buffer.ar.Add(name[len(s.trim)+1:], alldata)
+	if (s.smallfiles_buffer.buffer.Len() > SMALLFILES_AR_MAXSIZE) {
+		s.smallfiles_buffer.RequestCheck(s.chck_chan)
+		s.smallfiles_buffer = NewSmallFilesCollection(s.smallfiles_buffer.index+1)
+		if (s.smallfiles_buffer.buffer.Len() > 100) {
+			panic("Ahh!")
+		}
+	}
+}
+
+func (s *SmallFilesWalkObserver) LargeFile(name string) {
+	s.largefiles_queue = append(s.largefiles_queue, name)
+}
+
+func (s *SmallFilesWalkObserver) Error(path string, err error) {
+	fmt.Println(path, err)
+}
 
 func upload(is isolatedclient.IsolateServer, path string) {
 	hash_chan := make(chan *ToHash, 10)
@@ -185,34 +221,15 @@ func upload(is isolatedclient.IsolateServer, path string) {
 
 	canceler := common.NewCanceler()
 
-	go HashFile(is, hash_chan, chck_chan)
+	go HashFile(is, canceler, hash_chan, chck_chan)
 	go ChckFile(is, canceler, chck_chan, push_chan)
 	go PushFile(is, canceler, push_chan, done_chan)
 
-	paths := []string{ path }
-	smallfiles_buffer := NewSmallFilesCollection(0)
-	var largefiles_queue []string
-	errors := dirtools.FastWalk(
-		"", paths,
-		func(name string, data []byte) {
-			//fmt.Println("smallfile", name)
-			smallfiles_buffer.ar.Add(name[len(path)+1:], data)
-			if (smallfiles_buffer.buffer.Len() > SMALLFILES_MAXSIZE) {
-				smallfiles_buffer.RequestCheck(chck_chan)
-				smallfiles_buffer = NewSmallFilesCollection(smallfiles_buffer.index+1)
-			}
-		},
-		func(name string) {
-			largefiles_queue = append(largefiles_queue, name)
-		},
-	)
-	smallfiles_buffer.RequestCheck(chck_chan)
+	obs := NewSmallFilesWalkObserver(path, chck_chan)
+	dirtools.FastWalk(path, SMALLFILES_MAXSIZE, obs)
+	obs.smallfiles_buffer.RequestCheck(obs.chck_chan)
 
-	for _, err := range errors {
-		fmt.Println(err.Name, err.Err)
-	}
-
-	for _, name := range largefiles_queue {
+	for _, name := range obs.largefiles_queue {
 		hash_chan <- &ToHash{name}
 	}
 
