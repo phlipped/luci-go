@@ -11,7 +11,7 @@
  then just reading their contents directly is more efficient.
 
  **/
-package genar
+package dirtools
 
 import (
 	"os"

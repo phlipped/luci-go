@@ -18,12 +18,12 @@ import (
 	//"github.com/luci/luci-go/client/isolate"
 	"github.com/luci/luci-go/client/isolatedclient"
     "github.com/luci/luci-go/common/api/isolate/isolateservice/v1"
+	"github.com/luci/luci-go/common/archive/ar"
     "github.com/luci/luci-go/common/isolated"
-
+	"github.com/luci/luci-go/common/dirtools"
 	//"github.com/luci/luci-go/common/units"
 	"github.com/maruel/subcommands"
 
-	"github.com/mithro/genar"
 )
 
 type ReadSeekerCloser interface {
@@ -146,7 +146,7 @@ type SmallFilesCollection struct {
 	index int
 	buffer *bytes.Buffer
 	hash hash.Hash
-	ar *genar.ArWriter
+	ar *ar.Writer
 }
 
 func NewSmallFilesCollection(index int) *SmallFilesCollection {
@@ -157,7 +157,7 @@ func NewSmallFilesCollection(index int) *SmallFilesCollection {
 
 	var w io.Writer = o.buffer
 	w = io.MultiWriter(w, o.hash)
-	o.ar = genar.NewWriter(w)
+	o.ar = ar.NewWriter(w)
 	return &o
 }
 
@@ -192,11 +192,11 @@ func upload(is isolatedclient.IsolateServer, path string) {
 	paths := []string{ path }
 	smallfiles_buffer := NewSmallFilesCollection(0)
 	var largefiles_queue []string
-	errors := genar.FastWalk(
+	errors := dirtools.FastWalk(
 		"", paths,
 		func(name string, data []byte) {
 			//fmt.Println("smallfile", name)
-			smallfiles_buffer.ar.Write(name[len(path)+1:], data)
+			smallfiles_buffer.ar.Add(name[len(path)+1:], data)
 			if (smallfiles_buffer.buffer.Len() > SMALLFILES_MAXSIZE) {
 				smallfiles_buffer.RequestCheck(chck_chan)
 				smallfiles_buffer = NewSmallFilesCollection(smallfiles_buffer.index+1)

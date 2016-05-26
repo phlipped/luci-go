@@ -4,7 +4,7 @@
 package ar
 
 import (
-    "errors"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,47 +15,48 @@ const DEFAULT_USER = 1000
 const DEFAULT_GROUP = 1000
 const DEFAULT_MODE = 0100640  // 100640 -- Octal
 
-type ArWriterStage uint
+type WriterStage uint
 const (
-	WRITE_HEADER ArWriterStage = iota
+	WRITE_HEADER WriterStage = iota
 	WRITE_BODY = iota
 	WRITE_CLOSED = iota
 )
 
-type ArWriter struct {
-	w io.WriteCloser
-	stage ArWriterStage
+type Writer struct {
+	w io.Writer
+	stage WriterStage
 
 	bytesrequired int64
 	needspadding bool
 }
 
-func NewWriter(w io.Writer) *ArWriter {
+func NewWriter(w io.Writer) *Writer {
 	io.WriteString(w, "!<arch>\n")
-	return &ArWriter{w: w, stage: WRITE_HEADER, bytesrequired: 0, needspadding: 0}
+	return &Writer{w: w, stage: WRITE_HEADER, bytesrequired: 0, needspadding: false}
 }
 
-func (aw *ArWriter) Close() {
+func (aw *Writer) Close() error {
 	switch aw.stage {
 	case WRITE_HEADER:
 		// Good
 	case WRITE_BODY:
-		return &errorString{"Usage error, writing a file."}
+		return errors.New("Usage error, writing a file.")
 	case WRITE_CLOSED:
-		return &errorString{"Usage error, archive already closed."}
+		return errors.New("Usage error, archive already closed.")
 	default:
 		panic(fmt.Sprintf("Unknown writer mode: %d", aw.stage))
 	}
-	aw.w.Close()
+	//aw.w.Close()
 	aw.stage = WRITE_CLOSED
+	return nil
 }
 
-func (aw *ArWriter) wroteBytes(bytes uint64) error {
-	if (len(data) > aw.bytesrequired) {
-		panic(fmt.Sprintf("To much data written! Needed %d, got %d", aw.bytesrequired, len(data)))
+func (aw *Writer) wroteBytes(numbytes int64) error {
+	if (numbytes > aw.bytesrequired) {
+		panic(fmt.Sprintf("To much data written! Needed %d, got %d", aw.bytesrequired, numbytes))
 	}
 
-	aw.bytesrequired -= bytes
+	aw.bytesrequired -= numbytes
 	if aw.bytesrequired != 0 {
 		return nil
 	}
@@ -66,51 +67,54 @@ func (aw *ArWriter) wroteBytes(bytes uint64) error {
 		aw.needspadding = false
     }
 	aw.stage = WRITE_HEADER
+	return nil
 }
 
 // Check you can write bytes to the ar at this moment.
-func (aw *ArWriter) checkWrite() error {
+func (aw *Writer) checkWrite() error {
 	switch aw.stage {
 	case WRITE_HEADER:
-		return &errorString{"Usage error, need to write header first."}
+		return errors.New("Usage error, need to write header first.")
 		// Good
 	case WRITE_BODY:
 		return nil
 	case WRITE_CLOSED:
-		return &errorString{"Usage error, archive closed."}
+		return errors.New("Usage error, archive closed.")
 	default:
 		panic(fmt.Sprintf("Unknown writer mode: %d", aw.stage))
 	}
 }
 
 // Check we have finished writing bytes
-func (aw *ArWriter) checkFinished() {
+func (aw *Writer) checkFinished() {
 	if (aw.bytesrequired != 0) {
 		panic(fmt.Sprintf("Didn't write enough bytes %d still needed, archive corrupted!", aw.bytesrequired))
 	}
 }
 
-func (aw *ArWriter) writePartial(data []byte) error {
+func (aw *Writer) writePartial(data []byte) error {
 	err := aw.checkWrite()
 	if err != nil {
 		return err
 	}
 
-	if (len(data) > aw.bytesrequired) {
-		return &errorString{fmt.Sprintf("To much data! Needed %d, got %d", aw.bytesrequired, len(data))}
+	datalen := int64(len(data))
+	if (datalen > aw.bytesrequired) {
+		return errors.New(fmt.Sprintf("To much data! Needed %d, got %d", aw.bytesrequired, datalen))
 	}
 
 	aw.w.Write(data)
-	aw.wroteBytes(len(data))
+	aw.wroteBytes(datalen)
+	return nil
 }
 
-func (aw *ArWriter) WriteReader(data io.Reader) error {
+func (aw *Writer) WriteReader(data io.Reader) error {
 	err := aw.checkWrite()
 	if err != nil {
 		return err
 	}
 
-	count, err = io.Copy(aw.w, data)
+	count, err := io.Copy(aw.w, data)
 	if err != nil {
 		panic(fmt.Sprintf("err while copying (%s), archive is probably corrupted!", err))
 	}
@@ -120,14 +124,15 @@ func (aw *ArWriter) WriteReader(data io.Reader) error {
 	return nil
 }
 
-func (aw *ArWriter) WriteBytes(data []byte) error {
+func (aw *Writer) WriteBytes(data []byte) error {
 	err := aw.checkWrite()
 	if err != nil {
 		return err
 	}
 
-	if (len(data) != aw.bytesrequired) {
-		return &errorString{fmt.Sprintf("Wrong amount of data! Needed %d, got %d", aw.bytesrequired, len(data))}
+	datalen := int64(len(data))
+	if (datalen != aw.bytesrequired) {
+		return errors.New(fmt.Sprintf("Wrong amount of data! Needed %d, got %d", aw.bytesrequired, datalen))
 	}
 
 	aw.writePartial(data)
@@ -136,14 +141,14 @@ func (aw *ArWriter) WriteBytes(data []byte) error {
 }
 
 
-func (aw *ArWriter) writeHeaderBytes(name string, size int64, modtime uint64, ownerid uint, groupid uint, filemod uint) error {
+func (aw *Writer) writeHeaderBytes(name string, size int64, modtime uint64, ownerid uint, groupid uint, filemod uint) error {
 	switch aw.stage {
 	case WRITE_HEADER:
 		// Good
 	case WRITE_BODY:
-		return &errorString{"Usage error, already writing a file."}
+		return errors.New("Usage error, already writing a file.")
 	case WRITE_CLOSED:
-		return &errorString{"Usage error, archive closed."}
+		return errors.New("Usage error, archive closed.")
 	default:
 		panic(fmt.Sprintf("Unknown writer mode: %d", aw.stage))
 	}
@@ -156,7 +161,7 @@ func (aw *ArWriter) writeHeaderBytes(name string, size int64, modtime uint64, ow
 
     // Owner ID, 6 bytes
 	//fmt.Fprintf(aw.w, "1000  ")
-	fmt.Fprintf(aw.w, "%-6d", ownerid
+	fmt.Fprintf(aw.w, "%-6d", ownerid)
 
     // Group ID, 6 bytes
     //fmt.Fprintf(aw.w, "1000  ")
@@ -166,7 +171,7 @@ func (aw *ArWriter) writeHeaderBytes(name string, size int64, modtime uint64, ow
 	//fmt.Fprintf(aw.w, "100640  ")
 	fmt.Fprintf(aw.w, "%-8o", filemod)
 
-    aw.bytesrequired := len(name)+size
+    aw.bytesrequired = int64(len(name))+size
 
     // File size, 10 bytes
 	fmt.Fprintf(aw.w, "%-10d", aw.bytesrequired)
@@ -181,18 +186,18 @@ func (aw *ArWriter) writeHeaderBytes(name string, size int64, modtime uint64, ow
 	return aw.writePartial([]byte(name))
 }
 
-func (aw *ArWriter) WriteHeaderDefault(name string, size int64) error {
+func (aw *Writer) WriteHeaderDefault(name string, size int64) error {
 	return aw.writeHeaderBytes(name, size, 1447140471, DEFAULT_USER, DEFAULT_GROUP, DEFAULT_MODE)
 }
 
-func (aw *ArWriter) WriteHeader(stat *os.FileInfo) error {
+func (aw *Writer) WriteHeader(stat os.FileInfo) error {
 	if (stat.IsDir()) {
-		return &errorString{"Only work with files, not directories."}
+		return errors.New("Only work with files, not directories.")
 	}
 
 	mode := stat.Mode()
-	if (stat.Mode().ModeSymlink) {
-		return &errorString{"Only work with files, not symlinks."}
+	if mode & os.ModeSymlink == os.ModeSymlink {
+		return errors.New("Only work with files, not symlinks.")
 	}
 
 	/* FIXME: Should we also exclude other "special" files?
@@ -202,11 +207,11 @@ func (aw *ArWriter) WriteHeader(stat *os.FileInfo) error {
 	*/
 
 	// FIXME: Where do we get user/group from - they don't appear to be in Go's Mode() object?
-	return aw.writeHeaderBytes(stat.Name(), stat.Size(), stat.ModTime().Unix(), DEFAULT_USER, DEFAULT_GROUP, mode.Mode())
+	return aw.writeHeaderBytes(stat.Name(), stat.Size(), uint64(stat.ModTime().Unix()), DEFAULT_USER, DEFAULT_GROUP, uint(mode & os.ModePerm))
 }
 
-func (aw *ArWriter) Add(name string, data []byte) {
-	err := aw.WriteHeaderDefault(name, len(data))
+func (aw *Writer) Add(name string, data []byte) error {
+	err := aw.WriteHeaderDefault(name, int64(len(data)))
 	if err != nil {
 		return err
 	}

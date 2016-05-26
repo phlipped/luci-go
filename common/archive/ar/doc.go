@@ -14,4 +14,4 @@
 //
 // References:
 // * https://en.wikipedia.org/wiki/Ar_(Unix)
-package archive
+package ar
