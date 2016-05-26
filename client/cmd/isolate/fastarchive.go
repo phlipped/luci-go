@@ -11,37 +11,36 @@ import (
 	"hash"
 	"io"
 	"os"
-//	"path/filepath"
+	//	"path/filepath"
 	"time"
 
 	"github.com/luci/luci-go/client/internal/common"
 	//"github.com/luci/luci-go/client/isolate"
 	"github.com/luci/luci-go/client/isolatedclient"
-    "github.com/luci/luci-go/common/api/isolate/isolateservice/v1"
+	"github.com/luci/luci-go/common/api/isolate/isolateservice/v1"
 	"github.com/luci/luci-go/common/archive/ar"
-    "github.com/luci/luci-go/common/isolated"
 	"github.com/luci/luci-go/common/dirtools"
+	"github.com/luci/luci-go/common/isolated"
 	//"github.com/luci/luci-go/common/units"
 	"github.com/maruel/subcommands"
-
 )
 
 type ReadSeekerCloser interface {
 	io.Reader
 	io.Seeker
-//	io.Closer
+	//	io.Closer
 }
 type ToHash struct {
 	path string
 }
 type ToCheck struct {
 	digest isolateservice.HandlersEndpointsV1Digest
-	name string
+	name   string
 	source ReadSeekerCloser
 }
 type ToPush struct {
-	state *isolatedclient.PushState
-	name string
+	state  *isolatedclient.PushState
+	name   string
 	source ReadSeekerCloser
 }
 
@@ -53,13 +52,14 @@ func HashFile(is isolatedclient.IsolateServer, _ common.Canceler, src <-chan *To
 		dst <- &ToCheck{
 			digest: d,
 			source: f,
-			name: tohash.path,
+			name:   tohash.path,
 		}
 	}
 	close(dst)
 }
 
-const CHECK_BATCH_SIZE = 20;
+const CHECK_BATCH_SIZE = 20
+
 func ChckFile(is isolatedclient.IsolateServer, canceler common.Canceler, src <-chan *ToCheck, dst chan<- *ToPush) {
 	check_count := 0
 
@@ -74,16 +74,16 @@ func ChckFile(is isolatedclient.IsolateServer, canceler common.Canceler, src <-c
 		var topush [CHECK_BATCH_SIZE]ToPush
 
 		index := 0
-Loop:
+	Loop:
 		for index < CHECK_BATCH_SIZE && !done {
 			select {
 			case tocheck, more := <-src:
-				if (!more) {
+				if !more {
 					done = true
 					break Loop
 				}
 				digests[index] = &tocheck.digest
-				topush[index] = ToPush{state:nil, source:tocheck.source, name:tocheck.name}
+				topush[index] = ToPush{state: nil, source: tocheck.source, name: tocheck.name}
 				index += 1
 			case <-time.After(time.Millisecond * 10):
 				break Loop
@@ -107,7 +107,7 @@ Loop:
 						dst <- &topush[j]
 					} else {
 						fmt.Printf("skipping(%d): %s\n", inner_count, topush[j].name)
-//						sources[j].Close()
+						//						sources[j].Close()
 					}
 				}
 			}, func() {})
@@ -117,7 +117,6 @@ Loop:
 	_ = pool.Wait()
 	close(dst)
 }
-
 
 func PushFile(is isolatedclient.IsolateServer, canceler common.Canceler, src <-chan *ToPush, dst chan<- bool) {
 	pool := common.NewGoroutinePool(100, canceler)
@@ -134,7 +133,7 @@ func PushFile(is isolatedclient.IsolateServer, canceler common.Canceler, src <-c
 			} else {
 				fmt.Println("pushed:", topush.state)
 			}
-//			topush.source.Close()
+			//			topush.source.Close()
 		}, func() {})
 	}
 	_ = pool.Wait()
@@ -143,10 +142,10 @@ func PushFile(is isolatedclient.IsolateServer, canceler common.Canceler, src <-c
 
 // ---
 type SmallFilesCollection struct {
-	index int
+	index  int
 	buffer *bytes.Buffer
-	hash hash.Hash
-	ar *ar.Writer
+	hash   hash.Hash
+	ar     *ar.Writer
 }
 
 func NewSmallFilesCollection(index int) *SmallFilesCollection {
@@ -165,41 +164,42 @@ func (b SmallFilesCollection) RequestCheck(dst chan<- *ToCheck) {
 	fmt.Printf("rotating smallfilescollection-%d (%d bytes)\n", b.index, b.buffer.Len())
 	dst <- &ToCheck{
 		digest: isolateservice.HandlersEndpointsV1Digest{
-			Digest: string(isolated.Sum(b.hash)),
+			Digest:     string(isolated.Sum(b.hash)),
 			IsIsolated: false,
-			Size: int64(b.buffer.Len()),
+			Size:       int64(b.buffer.Len()),
 		},
 		source: bytes.NewReader(b.buffer.Bytes()),
-		name: fmt.Sprintf("smallfilescollection-%d", b.index),
+		name:   fmt.Sprintf("smallfilescollection-%d", b.index),
 	}
 }
+
 //
 
-const SMALLFILES_MAXSIZE = 1024 * 64 // 64kbytes
-const SMALLFILES_AR_MAXSIZE = 1024*1024*100 // 100MBytes
+const SMALLFILES_MAXSIZE = 1024 * 64            // 64kbytes
+const SMALLFILES_AR_MAXSIZE = 1024 * 1024 * 100 // 100MBytes
 
 type SmallFilesWalkObserver struct {
-	trim string
-	chck_chan chan<- *ToCheck
+	trim              string
+	chck_chan         chan<- *ToCheck
 	smallfiles_buffer *SmallFilesCollection
-	largefiles_queue []string
+	largefiles_queue  []string
 }
 
 func NewSmallFilesWalkObserver(trim string, chck_chan chan<- *ToCheck) *SmallFilesWalkObserver {
 	return &SmallFilesWalkObserver{
-		trim: trim,
-		chck_chan: chck_chan,
+		trim:              trim,
+		chck_chan:         chck_chan,
 		smallfiles_buffer: NewSmallFilesCollection(0),
-		largefiles_queue: make([]string, 0),
+		largefiles_queue:  make([]string, 0),
 	}
 }
 
 func (s *SmallFilesWalkObserver) SmallFile(name string, alldata []byte) {
 	s.smallfiles_buffer.ar.Add(name[len(s.trim)+1:], alldata)
-	if (s.smallfiles_buffer.buffer.Len() > SMALLFILES_AR_MAXSIZE) {
+	if s.smallfiles_buffer.buffer.Len() > SMALLFILES_AR_MAXSIZE {
 		s.smallfiles_buffer.RequestCheck(s.chck_chan)
-		s.smallfiles_buffer = NewSmallFilesCollection(s.smallfiles_buffer.index+1)
-		if (s.smallfiles_buffer.buffer.Len() > 100) {
+		s.smallfiles_buffer = NewSmallFilesCollection(s.smallfiles_buffer.index + 1)
+		if s.smallfiles_buffer.buffer.Len() > 100 {
 			panic("Ahh!")
 		}
 	}
@@ -272,15 +272,15 @@ func (c *fastArchiveRun) Parse(a subcommands.Application, args []string) error {
 }
 
 func (c *fastArchiveRun) main(a subcommands.Application, args []string) error {
-/*
-	out := os.Stdout
-	prefix := "\n"
-	if c.defaultFlags.Quiet {
-		out = nil
-		prefix = ""
-	}
-	start := time.Now()
-*/
+	/*
+		out := os.Stdout
+		prefix := "\n"
+		if c.defaultFlags.Quiet {
+			out = nil
+			prefix = ""
+		}
+		start := time.Now()
+	*/
 	client, err := c.createAuthClient()
 	if err != nil {
 		return err
