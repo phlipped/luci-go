@@ -8,27 +8,27 @@
 package ar
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"time"
-	"bytes"
 )
 
 type arFileInfo struct {
-	name string
-	size int64
-	mode uint32
+	name    string
+	size    int64
+	mode    uint32
 	modtime uint64
 }
 
-func (fi arFileInfo) Name() string { return fi.name }
-func (fi arFileInfo) Size() int64 { return fi.size }
-func (fi arFileInfo) Mode() os.FileMode { return os.FileMode(fi.mode) }
+func (fi arFileInfo) Name() string       { return fi.name }
+func (fi arFileInfo) Size() int64        { return fi.size }
+func (fi arFileInfo) Mode() os.FileMode  { return os.FileMode(fi.mode) }
 func (fi arFileInfo) ModTime() time.Time { return time.Unix(int64(fi.modtime), 0) }
-func (fi arFileInfo) IsDir() bool { return fi.Mode().IsDir() }
-func (fi arFileInfo) Sys() interface{} { return fi }
+func (fi arFileInfo) IsDir() bool        { return fi.Mode().IsDir() }
+func (fi arFileInfo) Sys() interface{}   { return fi }
 
 var (
 	ErrHeader = errors.New("archive/ar: invalid ar header")
@@ -43,8 +43,8 @@ const (
 )
 
 type Reader struct {
-	stage ReaderStage
-	r     io.Reader
+	stage         ReaderStage
+	r             io.Reader
 	bytesrequired int64
 	needspadding  bool
 }
@@ -168,7 +168,7 @@ func (ar *Reader) readHeaderBytes(name string, bytes int, formatstr string) (int
 		return -1, err
 	}
 
-	if (output <= 0) {
+	if output <= 0 {
 		return -1, errors.New(fmt.Sprintf("%s: bad value %d", name, output))
 	}
 	return output, nil

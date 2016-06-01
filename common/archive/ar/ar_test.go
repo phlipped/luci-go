@@ -5,25 +5,36 @@
 package ar
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 	"time"
-	"bytes"
 )
 
 var (
-	TestFile1 = (
-		"!<arch>\n"	+		// ar file header
-		"#1/9            "  + // filename len	- 16 bytes
-		"1447140471  "      + // modtime		- 12 bytes
-		"1000  "            + // owner id		- 6 bytes
-		"1000  "            + // group id		- 6 bytes
-		"100640  "          + // file mode	- 8 bytes
-		"15        "        + // Data size	- 10 bytes
-		"\x60\n"            + // File magic	- 2 bytes
-		"filename1"         + // File name	- 9 bytes
-		"abc123"            + // File data	- 6 bytes
-		"\n"                + // Padding		- 1 byte
+	TestFile1 = ("" +
+		// ar file header
+		"!<arch>\n" +
+		// filename len	- 16 bytes
+		"#1/9            " +
+		// modtime		- 12 bytes
+		"1447140471  " +
+		// owner id		- 6 bytes
+		"1000  " +
+		// group id		- 6 bytes
+		"1000  " +
+		// file mode	- 8 bytes
+		"100640  " +
+		// Data size	- 10 bytes
+		"15        " +
+		// File magic	- 2 bytes
+		"\x60\n" +
+		// File name	- 9 bytes
+		"filename1" +
+		// File data	- 6 bytes
+		"abc123" +
+		// Padding		- 1 byte
+		"\n" +
 		"")
 )
 
