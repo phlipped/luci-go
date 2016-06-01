@@ -184,7 +184,7 @@ func (aw *Writer) writeHeaderBytes(name string, size int64, modtime uint64, owne
 	io.WriteString(aw.w, "\x60\n")
 
 	aw.stage = WRITE_BODY
-	aw.needspadding = (aw.bytesrequired%2 == 0)
+	aw.needspadding = (aw.bytesrequired%2 != 0)
 
 	// Filename - BSD variant
 	return aw.writePartial([]byte(name))

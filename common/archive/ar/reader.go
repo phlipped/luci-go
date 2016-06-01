@@ -12,21 +12,22 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
+	"bytes"
 )
 
-
-struct arFileInfo {
+type arFileInfo struct {
 	name string
 	size int64
 	mode uint32
-	modtime time.Time
+	modtime uint64
 }
 
 func (fi arFileInfo) Name() string { return fi.name }
 func (fi arFileInfo) Size() int64 { return fi.size }
-func (fi arFileInfo) Mode() FileMode { return FileMode(fi.mode) }
-func (fi arFileInfo) ModTime() int64 { return fi.modtime }
-func (fi arFileInfo) IsDir() int64 { return fi.Mode().IsDir() }
+func (fi arFileInfo) Mode() os.FileMode { return os.FileMode(fi.mode) }
+func (fi arFileInfo) ModTime() time.Time { return time.Unix(int64(fi.modtime), 0) }
+func (fi arFileInfo) IsDir() bool { return fi.Mode().IsDir() }
 func (fi arFileInfo) Sys() interface{} { return fi }
 
 var (
@@ -42,6 +43,7 @@ const (
 )
 
 type Reader struct {
+	stage ReaderStage
 	r     io.Reader
 	bytesrequired int64
 	needspadding  bool
@@ -49,7 +51,7 @@ type Reader struct {
 
 func NewReader(r io.Reader) (*Reader, error) {
 	reader := Reader{r: r, bytesrequired: 0, needspadding: false}
-	err := reader.checkBytes("!<arch>\n")
+	err := reader.checkBytes("header", []byte("!<arch>\n"))
 	if err != nil {
 		return nil, err
 	} else {
@@ -57,22 +59,22 @@ func NewReader(r io.Reader) (*Reader, error) {
 	}
 }
 
-func (ar *Reader) checkBytes([]byte str) error {
+func (ar *Reader) checkBytes(name string, str []byte) error {
 	buffer := make([]byte, len(str))
 
-	count, err = io.ReadFull(ar.r, buffer)
+	count, err := io.ReadFull(ar.r, buffer)
 	if err != nil {
 		return err
 	}
 
 	if count != len(buffer) {
-		return errors.New(fmt.Printf("Not enough data read (only %d, needed %d)", count, len(buffer)))
+		return errors.New(fmt.Sprintf("%s: Not enough data read (only %d, needed %d)", count, len(buffer)))
 	}
 
 	if bytes.Equal(str, buffer) {
 		return nil
 	} else {
-		return &ErrHeader
+		return errors.New(fmt.Sprintf("%s: error in bytes (wanted: %v got: %v)", name, buffer, str))
 	}
 }
 
@@ -94,7 +96,7 @@ func (ar *Reader) Close() error {
 
 func (ar *Reader) readBytes(numbytes int64) error {
 	if numbytes > ar.bytesrequired {
-		panic(fmt.Sprintf("To much data read! Needed %d, got %d", ar.bytesrequired, numbytes))
+		return errors.New(fmt.Sprintf("To much data read! Needed %d, got %d", ar.bytesrequired, numbytes))
 	}
 
 	ar.bytesrequired -= numbytes
@@ -104,7 +106,7 @@ func (ar *Reader) readBytes(numbytes int64) error {
 
 	// Padding to 16bit boundary
 	if ar.needspadding {
-		err := ar.checkBytes("\n")
+		err := ar.checkBytes("padding", []byte("\n"))
 		if err != nil {
 			return err
 		}
@@ -130,13 +132,14 @@ func (ar *Reader) checkRead() error {
 }
 
 // Check we have finished writing bytes
-func (ar *Reader) checkFinished() {
+func (ar *Reader) checkFinished() error {
 	if ar.bytesrequired != 0 {
-		panic(fmt.Sprintf("Didn't read enough bytes %d still needed!", ar.bytesrequired))
+		return errors.New(fmt.Sprintf("Didn't read enough bytes %d still needed!", ar.bytesrequired))
 	}
+	return nil
 }
 
-func (ar *Reader) readPartial(data []byte) error {
+func (ar *Reader) readPartial(name string, data []byte) error {
 	err := ar.checkRead()
 	if err != nil {
 		return err
@@ -147,122 +150,117 @@ func (ar *Reader) readPartial(data []byte) error {
 		return errors.New(fmt.Sprintf("To much data! Wanted %d, but had %d", ar.bytesrequired, datalen))
 	}
 
-	count, err = ar.r.ReadFull(data)
-	ar.readBytes(datalen)
+	count, err := io.ReadFull(ar.r, data)
+	ar.readBytes(int64(count))
 	return nil
 }
 
-func (ar *Reader) readHeaderBytes() (os.FileInfo, error) {
+func (ar *Reader) readHeaderBytes(name string, bytes int, formatstr string) (int64, error) {
+	data := make([]byte, bytes)
+	_, err := io.ReadFull(ar.r, data)
+	if err != nil {
+		return -1, err
+	}
+
+	var output int64 = 0
+	_, err = fmt.Sscanf(string(data), formatstr, &output)
+	if err != nil {
+		return -1, err
+	}
+
+	if (output <= 0) {
+		return -1, errors.New(fmt.Sprintf("%s: bad value %d", name, output))
+	}
+	return output, nil
+}
+
+func (ar *Reader) readHeader() (*arFileInfo, error) {
 	switch ar.stage {
 	case READ_HEADER:
 		// Good
 	case READ_BODY:
-		return errors.New("Usage error, already writing a file.")
+		return nil, errors.New("Usage error, already writing a file.")
 	case READ_CLOSED:
-		return errors.New("Usage error, archive closed.")
+		return nil, errors.New("Usage error, archive closed.")
 	default:
 		panic(fmt.Sprintf("Unknown writer mode: %d", ar.stage))
 	}
 
-	fi arFileInfo
+	var fi arFileInfo
 
 	// File name length prefixed with '#1/' (BSD variant), 16 bytes
-	int namelen = 0;
-	_, err := fmt.Fscanf(ar.r, "#1/%-13d", &namelen)
+	namelen, err := ar.readHeaderBytes("filename length", 16, "#1/%13d")
 	if err != nil {
-		return err
-	}
-	if (namelen <= 0) {
-		return errors.New("Bad name length.")
+		return nil, err
 	}
 
 	// Modtime, 12 bytes
-	int64 modtime = 0;
-	_, err := fmt.Fscanf(ar.r, "%-12d", &modtime)
+	modtime, err := ar.readHeaderBytes("modtime", 12, "%12d")
 	if err != nil {
-		return err
-	}
-	if (modtime <= 0) {
-		return errors.New("Bad modtime.")
+		return nil, err
 	}
 	fi.modtime = uint64(modtime)
 
 	// Owner ID, 6 bytes
-	int ownerid = 0;
-	_, err := fmt.Fscanf(ar.r, "%-6d", &ownerid)
+	_, err = ar.readHeaderBytes("ownerid", 6, "%6d")
 	if err != nil {
-		return err
-	}
-	if (ownerid <= 0) {
-		return errors.New("Bad owner id.")
+		return nil, err
 	}
 	// FIXME: Should store this in the arFileInfo somewhere...
 
 	// Group ID, 6 bytes
-	int groupid = 0;
-	_, err := fmt.Fscanf(ar.r, "%-6d", &groupid)
+	_, err = ar.readHeaderBytes("groupid", 6, "%6d")
 	if err != nil {
-		return err
-	}
-	if (groupid <= 0) {
-		return errors.New("Bad group id.")
+		return nil, err
 	}
 	// FIXME: Should store this in the arFileInfo somewhere...
 
 	// File mode, 8 bytes
-	uint32 filemod = 0;
-	_, err := fmt.Fscanf(ar.r, "%-8o", &filemod)
+	filemod, err := ar.readHeaderBytes("groupid", 8, "%8o")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if (filemod <= 0) {
-		return errors.New("Bad file mode.")
-	}
-	fi.mode = filemod
+	fi.mode = uint32(filemod)
 
 	// File size, 10 bytes
-	int64 size = 0;
-	_, err := fmt.Fscanf(ar.r, "%-10d", &size)
+	size, err := ar.readHeaderBytes("datasize", 10, "%10d")
 	if err != nil {
-		return err
-	}
-	if (size <= 0) {
-		return errors.New("Bad modtime.")
+		return nil, err
 	}
 	fi.size = size - namelen
 
 	ar.stage = READ_BODY
 	ar.bytesrequired = size
-	ar.needspadding = (ar.bytesrequired%2 == 0)
+	ar.needspadding = (ar.bytesrequired%2 != 0)
 
 	// File magic, 2 bytes
-	err := ar.checkBytes("\x60\n")
+	err = ar.checkBytes("filemagic", []byte("\x60\n"))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Filename - BSD variant
 	filename := make([]byte, namelen)
-	ar.readPartialBytes(filename)
+	err = ar.readPartial("filename", filename)
 	if err != nil {
 		return nil, err
 	}
-	fi.name = filename
+	fi.name = string(filename)
 
-	return fi, nil
+	return &fi, nil
 }
 
 func (ar *Reader) Read(b []byte) (n int, err error) {
-	err := readPartial(b)
+	err = ar.readPartial("data", b)
 	if err != nil {
 		return -1, err
 	}
-	err := checkFinished()
+	err = ar.checkFinished()
 	if err != nil {
 		return -1, err
 	}
 	return len(b), nil
 }
-func (ar *Reader) Next(b []byte) (*os.FileInfo, err error) {
-	return readHeaderBytes();
+func (ar *Reader) Next() (*arFileInfo, error) {
+	return ar.readHeader()
 }
