@@ -50,7 +50,7 @@ func (a EntryErrorByName) Len() int           { return len(a) }
 func (a EntryErrorByName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a EntryErrorByName) Less(i, j int) bool { return a[i].name < a[j].name }
 
-func fastWalkInternal(base string, files []string, smallfile_limit int64, obs WalkObserver) {
+func walkNoStatInternal(base string, files []string, smallfile_limit int64, obs WalkObserver) {
 	var errors []EntryError
 	var smallfiles []SmallFile
 	var largefiles []string
@@ -114,11 +114,11 @@ func fastWalkInternal(base string, files []string, smallfile_limit int64, obs Wa
 			obs.Error(d.name, d.err)
 			continue
 		}
-		fastWalkInternal(d.name, names, smallfile_limit, obs)
+		walkNoStatInternal(d.name, names, smallfile_limit, obs)
 	}
 }
 
-func FastWalk(root string, smallfile_limit int64, obs WalkObserver) {
+func WalkNoStat(root string, smallfile_limit int64, obs WalkObserver) {
 	paths := []string{root}
-	fastWalkInternal("", paths, smallfile_limit, obs)
+	walkNoStatInternal("", paths, smallfile_limit, obs)
 }

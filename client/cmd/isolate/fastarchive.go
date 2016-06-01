@@ -226,7 +226,7 @@ func upload(is isolatedclient.IsolateServer, path string) {
 	go PushFile(is, canceler, push_chan, done_chan)
 
 	obs := NewSmallFilesWalkObserver(path, chck_chan)
-	dirtools.FastWalk(path, SMALLFILES_MAXSIZE, obs)
+	dirtools.WalkNoStat(path, SMALLFILES_MAXSIZE, obs)
 	obs.smallfiles_buffer.RequestCheck(obs.chck_chan)
 
 	for _, name := range obs.largefiles_queue {

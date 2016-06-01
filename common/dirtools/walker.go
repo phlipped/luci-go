@@ -32,7 +32,7 @@ type WalkObserver interface {
 	Error(pathname string, err error)
 }
 
-func SlowWalk(root string, smallfile_limit int64, obs WalkObserver) {
+func WalkBasic(root string, smallfile_limit int64, obs WalkObserver) {
 	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			obs.Error(path, err)
