@@ -11,7 +11,6 @@ import (
 	"hash"
 	"io"
 	"os"
-	//	"path/filepath"
 	"time"
 
 	"github.com/luci/luci-go/client/internal/common"
