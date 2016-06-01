@@ -97,7 +97,7 @@ func ChckFile(is isolatedclient.IsolateServer, canceler common.Canceler, src <-c
 				fmt.Printf("checking(%d) %d files\n", inner_count, inner_index)
 				pushstates, err := is.Contains(digests[:inner_index])
 				if err != nil {
-					fmt.Println("checking(%d) error:", inner_count, err)
+					fmt.Printf("checking(%d) error: %s\n", inner_count, err)
 					return
 				}
 				for j, state := range pushstates {
