@@ -164,17 +164,15 @@ func (aw *Writer) writeHeaderBytes(name string, size int64, modtime uint64, owne
 	fmt.Fprintf(aw.w, "%-12d", modtime)
 
 	// Owner ID, 6 bytes
-	//fmt.Fprintf(aw.w, "1000  ")
 	fmt.Fprintf(aw.w, "%-6d", ownerid)
 
 	// Group ID, 6 bytes
-	//fmt.Fprintf(aw.w, "1000  ")
 	fmt.Fprintf(aw.w, "%-6d", groupid)
 
 	// File mode, 8 bytes
-	//fmt.Fprintf(aw.w, "100640  ")
 	fmt.Fprintf(aw.w, "%-8o", filemod)
 
+	// In BSD variant, file size includes the filename length
 	aw.bytesrequired = int64(len(name)) + size
 
 	// File size, 10 bytes

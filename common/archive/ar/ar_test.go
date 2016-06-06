@@ -6,6 +6,10 @@ package ar
 
 import (
 	"bytes"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"path"
 	"strings"
 	"testing"
 	"time"
@@ -58,7 +62,6 @@ func TestWriterCreatesTestFile1(t *testing.T) {
 }
 
 func TestReaderOnTestFile1(t *testing.T) {
-
 	r := strings.NewReader(TestFile1)
 
 	ar, err := NewReader(r)
@@ -95,5 +98,100 @@ func TestReaderOnTestFile1(t *testing.T) {
 	err = ar.Close()
 	if err != nil {
 		t.Fatalf("Close: %v", err)
+	}
+}
+
+func TestWithSystemArCommandList(t *testing.T) {
+	_, err := exec.LookPath("ar")
+	if err != nil {
+		t.Skipf("ar command not found: %v", err)
+	}
+
+	// Write out to an archive file
+	tmpfile, err := ioutil.TempFile("", "go-ar-test.")
+	defer os.Remove(tmpfile.Name()) // clean up
+	ar := NewWriter(tmpfile)
+	ar.Add("file1.txt", []byte("file1 contents"))
+	ar.Add("file2.txt", []byte("file2 contents"))
+	ar.Add("dir1/file3.txt", []byte("file3 contents"))
+	ar.Close()
+
+	// Use the ar command to list the file
+	cmd_list := exec.Command("ar", "t", tmpfile.Name())
+	var cmd_list_out_buf bytes.Buffer
+	cmd_list.Stdout = &cmd_list_out_buf
+	err = cmd_list.Run()
+	if err != nil {
+		t.Fatalf("ar command failed: %v\n%s", err, cmd_list_out_buf.String())
+	}
+
+	cmd_list_actual_out := cmd_list_out_buf.String()
+	cmd_list_expect_out := `file1.txt
+file2.txt
+dir1/file3.txt
+`
+	if strings.Compare(cmd_list_actual_out, cmd_list_expect_out) != 0 {
+		t.Fatalf("ar command output: '%s'", cmd_list_actual_out)
+	}
+}
+
+func TestWithSystemArCommandExtract(t *testing.T) {
+	arpath, err := exec.LookPath("ar")
+	if err != nil {
+		t.Skipf("ar command not found: %v", err)
+	}
+
+	// Write out to an archive file
+	tmpfile, err := ioutil.TempFile("", "go-ar-test.")
+	defer os.Remove(tmpfile.Name()) // clean up
+	ar := NewWriter(tmpfile)
+	ar.Add("file1.txt", []byte("file1 contents"))
+	ar.Add("file2.txt", []byte("file2 contents"))
+	ar.Close()
+
+	// Extract the ar
+	tmpdir, err := ioutil.TempDir("", "go-ar-test.")
+	defer os.RemoveAll(tmpdir)
+	cmd_extract := exec.Cmd{
+		Path: arpath,
+		Args: []string{"ar", "x", tmpfile.Name()},
+		Dir:  tmpdir,
+	}
+	err = cmd_extract.Run()
+	var cmd_extract_out_buf bytes.Buffer
+	cmd_extract.Stdout = &cmd_extract_out_buf
+	if err != nil {
+		t.Fatalf("ar command failed: %v\n%s", err, cmd_extract_out_buf.String())
+	}
+
+	// Compare the directory output
+	dir_contents, err := ioutil.ReadDir(tmpdir)
+	if err != nil {
+		t.Fatalf("Unable to read the output directory: %v", err)
+	}
+	for _, fi := range dir_contents {
+		if fi.Name() != "file1.txt" && fi.Name() != "file2.txt" {
+			t.Errorf("Found unexpected file '%s'", fi.Name())
+		}
+	}
+
+	file1_contents, err := ioutil.ReadFile(path.Join(tmpdir, "file1.txt"))
+	file1_expected := []byte("file1 contents")
+	if err != nil {
+		t.Errorf("%v", err)
+	} else {
+		if bytes.Compare(file1_contents, file1_expected) != 0 {
+			t.Errorf("file1.txt content incorrect. Got:\n%v\n%v\n", file1_contents, file1_expected)
+		}
+	}
+
+	file2_contents, err := ioutil.ReadFile(path.Join(tmpdir, "file2.txt"))
+	file2_expected := []byte("file2 contents")
+	if err != nil {
+		t.Errorf("%v", err)
+	} else {
+		if bytes.Compare(file2_contents, file2_expected) != 0 {
+			t.Errorf("file2.txt content incorrect. Got:\n%v\n%v\n", file2_contents, file2_expected)
+		}
 	}
 }

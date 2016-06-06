@@ -17,18 +17,27 @@ import (
 )
 
 type arFileInfo struct {
+	// os.FileInfo parts
 	name    string
 	size    int64
 	mode    uint32
 	modtime uint64
+	// Extra parts
+	uid int
+	gid int
 }
 
+// os.FileInfo interface
 func (fi arFileInfo) Name() string       { return fi.name }
 func (fi arFileInfo) Size() int64        { return fi.size }
 func (fi arFileInfo) Mode() os.FileMode  { return os.FileMode(fi.mode) }
 func (fi arFileInfo) ModTime() time.Time { return time.Unix(int64(fi.modtime), 0) }
 func (fi arFileInfo) IsDir() bool        { return fi.Mode().IsDir() }
 func (fi arFileInfo) Sys() interface{}   { return fi }
+
+// Extra
+func (fi arFileInfo) UserId() int  { return fi.uid }
+func (fi arFileInfo) GroupId() int { return fi.gid }
 
 var (
 	ErrHeader = errors.New("archive/ar: invalid ar header")
@@ -202,18 +211,18 @@ func (ar *Reader) readHeader() (*arFileInfo, error) {
 	fi.modtime = uint64(modtime)
 
 	// Owner ID, 6 bytes
-	_, err = ar.readHeaderBytes("ownerid", 6, "%6d")
+	ownerid, err := ar.readHeaderBytes("ownerid", 6, "%6d")
 	if err != nil {
 		return nil, err
 	}
-	// FIXME: Should store this in the arFileInfo somewhere...
+	fi.uid = int(ownerid)
 
 	// Group ID, 6 bytes
-	_, err = ar.readHeaderBytes("groupid", 6, "%6d")
+	groupid, err := ar.readHeaderBytes("groupid", 6, "%6d")
 	if err != nil {
 		return nil, err
 	}
-	// FIXME: Should store this in the arFileInfo somewhere...
+	fi.gid = int(groupid)
 
 	// File mode, 8 bytes
 	filemod, err := ar.readHeaderBytes("groupid", 8, "%8o")
