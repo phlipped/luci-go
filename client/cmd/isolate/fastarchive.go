@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"io/ioutil"
 	"os"
 	"time"
 
@@ -29,6 +30,7 @@ type ReadSeekerCloser interface {
 	io.Seeker
 	//	io.Closer
 }
+
 type ToHash struct {
 	path string
 }
@@ -126,7 +128,10 @@ func PushFile(is isolatedclient.IsolateServer, canceler common.Canceler, src <-c
 	for topush := range src {
 		pool.Schedule(func() {
 			fmt.Printf("pushing: %s\n", topush.name)
-			err := is.Push(topush.state, topush.source)
+			err := is.Push(topush.state, func() (io.ReadCloser, error) {
+				topush.source.Seek(0, 0)
+				return ioutil.NopCloser(topush.source), nil
+			})
 			if err != nil {
 				fmt.Println("pushing err:", err)
 			} else {
