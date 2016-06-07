@@ -1,10 +1,9 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
+// Copyright 2016 The LUCI Authors. All rights reserved.
+// Use of this source code is governed under the Apache License, Version 2.0
+// that can be found in the LICENSE file.
 
-/**
- * Read an ar archive file.
- */
+// Read an ar file with BSD formatted file names.
+
 package ar
 
 import (
@@ -28,16 +27,16 @@ type arFileInfo struct {
 }
 
 // os.FileInfo interface
-func (fi arFileInfo) Name() string       { return fi.name }
-func (fi arFileInfo) Size() int64        { return fi.size }
-func (fi arFileInfo) Mode() os.FileMode  { return os.FileMode(fi.mode) }
-func (fi arFileInfo) ModTime() time.Time { return time.Unix(int64(fi.modtime), 0) }
-func (fi arFileInfo) IsDir() bool        { return fi.Mode().IsDir() }
-func (fi arFileInfo) Sys() interface{}   { return fi }
+func (fi *arFileInfo) Name() string       { return fi.name }
+func (fi *arFileInfo) Size() int64        { return fi.size }
+func (fi *arFileInfo) Mode() os.FileMode  { return os.FileMode(fi.mode) }
+func (fi *arFileInfo) ModTime() time.Time { return time.Unix(int64(fi.modtime), 0) }
+func (fi *arFileInfo) IsDir() bool        { return fi.Mode().IsDir() }
+func (fi *arFileInfo) Sys() interface{}   { return fi }
 
 // Extra
-func (fi arFileInfo) UserId() int  { return fi.uid }
-func (fi arFileInfo) GroupId() int { return fi.gid }
+func (fi *arFileInfo) UserId() int  { return fi.uid }
+func (fi *arFileInfo) GroupId() int { return fi.gid }
 
 var (
 	ErrHeader = errors.New("archive/ar: invalid ar header")
@@ -47,8 +46,8 @@ type ReaderStage uint
 
 const (
 	READ_HEADER ReaderStage = iota
-	READ_BODY               = iota
-	READ_CLOSED             = iota
+	READ_BODY
+	READ_CLOSED
 )
 
 type Reader struct {
@@ -77,7 +76,7 @@ func (ar *Reader) checkBytes(name string, str []byte) error {
 	}
 
 	if count != len(buffer) {
-		return errors.New(fmt.Sprintf("%s: Not enough data read (only %d, needed %d)", count, len(buffer)))
+		return errors.New(fmt.Sprintf("%s: Not enough data read (only %d, needed %d)", name, count, len(buffer)))
 	}
 
 	if bytes.Equal(str, buffer) {

@@ -1,10 +1,9 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
+// Copyright 2016 The LUCI Authors. All rights reserved.
+// Use of this source code is governed under the Apache License, Version 2.0
+// that can be found in the LICENSE file.
 
-/**
- * Write an ar archive file.
- */
+// Write an ar archive file with BSD style filenames.
+
 package ar
 
 import (
@@ -23,8 +22,8 @@ type WriterStage uint
 
 const (
 	WRITE_HEADER WriterStage = iota
-	WRITE_BODY               = iota
-	WRITE_CLOSED             = iota
+	WRITE_BODY
+	WRITE_CLOSED
 )
 
 type Writer struct {
