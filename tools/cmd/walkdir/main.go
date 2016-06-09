@@ -12,6 +12,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"sync/atomic"
 	"os"
 
 	"github.com/luci/luci-go/common/dirtools"
@@ -28,15 +29,15 @@ var repeat = flag.Int("repeat", 1, "Repeat the walk x times")
 
 // Walker which does nothing but count the files of each type
 type NullWalker struct {
-	smallfiles int64
-	largefiles int64
+	smallfiles uint64
+	largefiles uint64
 }
 
 func (n *NullWalker) SmallFile(filename string, alldata []byte) {
-	n.smallfiles += 1
+	atomic.AddUint64(&n.smallfiles, 1)
 }
 func (n *NullWalker) LargeFile(filename string) {
-	n.largefiles += 1
+	atomic.AddUint64(&n.largefiles, 1)
 }
 func (n *NullWalker) Error(pathname string, err error) {
 	log.Fatal("%s:%s", pathname, err)
@@ -170,4 +171,5 @@ func main() {
 		}
 		fmt.Printf("Found %d small files and %d large files\n", stats.smallfiles, stats.largefiles)
 	}
+	fmt.Fprintf(os.Stderr, "Found %d small files and %d large files\n", stats.smallfiles, stats.largefiles)
 }

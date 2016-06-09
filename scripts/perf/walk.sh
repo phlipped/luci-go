@@ -20,11 +20,14 @@ done
 for METHOD in simple nostat parallel; do
 	echo "Running $METHOD"
 	for TESTFILE in $TESTS; do
-		TESTNAME="$(basename $TEST .json)"
+		TESTNAME="$(basename $TESTFILE .json)"
 		TESTDIR="$TMPDIR/$TESTNAME"
 		OUTPUT=output.$METHOD.$TESTNAME
-		$(which time) --verbose --output=$OUTPUT --append walkdir --dir $TESTDIR --method $METHOD $@ > $OUTPUT
-		tail -n 10 $OUTPUT
+		echo "Running $METHOD.$TESTNAME"
+		rm $OUTPUT
+		$(which time) --verbose --output=$OUTPUT --append walkdir --dir $TESTDIR --method $METHOD $@ 2> $OUTPUT
+		tail -n 100 $OUTPUT
+		echo
 	done
 	echo
 	echo

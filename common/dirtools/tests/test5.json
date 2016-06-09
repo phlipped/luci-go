@@ -5,15 +5,15 @@
 		"Files": [
 			{
 				"MinNumber":10,
-				"MaxNumber":100,
+				"MaxNumber":1000,
 				"MinSize":0,
 				"MaxSize":65536
 			},
 			{
 				"MinNumber":0,
-				"MaxNumber":10,
+				"MaxNumber":5,
 				"MinSize":10000000,
-				"MaxSize":250000000
+				"MaxSize":100000000
 			}
 		],
 		"Dir": {
