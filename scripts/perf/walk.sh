@@ -26,7 +26,7 @@ for METHOD in simple nostat parallel; do
 		echo "Running $METHOD.$TESTNAME"
 		rm $OUTPUT
 		$(which time) --verbose --output=$OUTPUT --append walkdir --dir $TESTDIR --method $METHOD $@ 2> $OUTPUT
-		tail -n 100 $OUTPUT
+		tail -n 20 $OUTPUT
 		echo
 	done
 	echo

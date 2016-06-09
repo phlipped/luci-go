@@ -34,6 +34,8 @@ type WalkObserver interface {
 	//FinishDir(dirname string)
 
 	Error(pathname string, err error)
+
+	Finished()
 }
 
 func WalkBasic(root string, smallfile_limit int64, obs WalkObserver) {
@@ -62,4 +64,5 @@ func WalkBasic(root string, smallfile_limit int64, obs WalkObserver) {
 		}
 		return nil
 	})
+	obs.Finished()
 }

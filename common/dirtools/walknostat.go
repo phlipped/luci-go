@@ -125,4 +125,5 @@ func walkNoStatInternal(base string, files []string, smallfile_limit int64, obs 
 func WalkNoStat(root string, smallfile_limit int64, obs WalkObserver) {
 	paths := []string{root}
 	walkNoStatInternal("", paths, smallfile_limit, obs)
+	obs.Finished()
 }

@@ -13,8 +13,10 @@ import (
 	"io/ioutil"
 	"log"
 	"sync/atomic"
+	"runtime"
 	"os"
 
+	"github.com/dustin/go-humanize"
 	"github.com/luci/luci-go/common/dirtools"
 	"github.com/luci/luci-go/common/isolated"
 )
@@ -26,6 +28,8 @@ var dir = flag.String("dir", "", "Directory to walk")
 var do = flag.String("do", "nothing", "Action to perform on the files")
 var smallfilesize = flag.Int64("smallfilesize", 64*1024, "Size to consider a small file")
 var repeat = flag.Int("repeat", 1, "Repeat the walk x times")
+
+var maxworkers = flag.Int("maxworkers", 100, "Maximum number of workers to use.")
 
 // Walker which does nothing but count the files of each type
 type NullWalker struct {
@@ -41,6 +45,8 @@ func (n *NullWalker) LargeFile(filename string) {
 }
 func (n *NullWalker) Error(pathname string, err error) {
 	log.Fatal("%s:%s", pathname, err)
+}
+func (n *NullWalker) Finished() {
 }
 
 // Walker which just prints the filenames of everything
@@ -119,7 +125,80 @@ func (h *HashWalker) LargeFile(filename string) {
 	h.HashedFile(filename, isolated.HexDigest(d.Digest))
 }
 
-// FIXME: Walker which hashes all the files in parallel
+// Walker which hashes using a worker tool
+type ToHash struct {
+	filename string
+	hasdata bool
+	data []byte
+}
+type ParallelHashWalker struct {
+	NullWalker
+	obuf io.Writer
+	workers int
+	queue chan ToHash
+	finished chan bool
+}
+func ParallelHashWalkerWorker(name int, obuf io.Writer, queue <-chan ToHash, finished chan<- bool) {
+	fmt.Fprintf(obuf, "Starting hash worker %d\n", name)
+
+	var filecount uint64 = 0
+	var bytecount uint64 = 0
+	for tohash := range queue {
+		filecount += 1
+
+		var digest isolated.HexDigest
+		if tohash.hasdata {
+			bytecount += uint64(len(tohash.data))
+			digest = isolated.HashBytes(tohash.data)
+		} else {
+			d, _ := isolated.HashFile(tohash.filename)
+			bytecount += uint64(d.Size)
+			digest = isolated.HexDigest(d.Digest)
+		}
+		fmt.Fprintf(obuf, "%s: %v\n", tohash.filename, digest)
+	}
+	fmt.Fprintf(obuf, "Finished hash worker %d (hashed %d files, %s)\n", name, filecount, humanize.Bytes(bytecount))
+	finished <- true
+}
+func CreateParallelHashWalker(obuf io.Writer) (*ParallelHashWalker) {
+	var max int = *maxworkers
+
+	maxProcs := runtime.GOMAXPROCS(0)
+	if maxProcs < max {
+		max = maxProcs
+	}
+
+	numCPU := runtime.NumCPU()
+	if numCPU < maxProcs {
+		max = numCPU
+	}
+
+	if max < *maxworkers {
+		// FIXME: Warn
+	}
+
+	h := ParallelHashWalker{obuf: obuf, workers: max, queue: make(chan ToHash, max), finished: make(chan bool)}
+
+	for i := 0; i < h.workers; i++ {
+		go ParallelHashWalkerWorker(i, obuf, h.queue, h.finished)
+	}
+	return &h
+}
+func (h *ParallelHashWalker) SmallFile(filename string, alldata []byte) {
+	h.NullWalker.SmallFile(filename, alldata)
+	h.queue <- ToHash{filename: filename, hasdata: true, data: alldata}
+}
+func (h *ParallelHashWalker) LargeFile(filename string) {
+	h.NullWalker.LargeFile(filename)
+	h.queue <- ToHash{filename: filename, hasdata: false}
+}
+func (h *ParallelHashWalker) Finished() {
+	close(h.queue)
+	for i := 0; i < h.workers; i++ {
+		<-h.finished
+	}
+	fmt.Fprintln(h.obuf, "All workers finished.")
+}
 
 func main() {
 	flag.Parse()
@@ -149,6 +228,10 @@ func main() {
 		obs = o
 	case "hash":
 		o := &HashWalker{obuf: os.Stderr}
+		stats = &o.NullWalker
+		obs = o
+	case "phash":
+		o := CreateParallelHashWalker(os.Stderr)
 		stats = &o.NullWalker
 		obs = o
 	default:

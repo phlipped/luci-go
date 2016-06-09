@@ -97,4 +97,5 @@ func WalkParallel(root string, smallfile_limit int64, obs WalkObserver) {
 
 	queue.add(root)
 	queue.wait()
+	obs.Finished()
 }
