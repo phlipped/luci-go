@@ -7,18 +7,19 @@ package main
 // Quick tool for generating directories to walk.
 
 import (
-	"github.com/luci/luci-go/common/dirtools"
-	"github.com/luci/luci-go/common/isolated"
 	"flag"
 	"fmt"
-	"log"
+	"github.com/luci/luci-go/common/dirtools"
+	"github.com/luci/luci-go/common/isolated"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 )
 
 var method = flag.String("method", "simple", "Method used to walk the tree")
 var dir = flag.String("dir", "", "Directory to walk")
+
 //var do = flags.Choice("do", "null", ["null", "print", "read"])
 var do = flag.String("do", "nothing", "Action to perform on the files")
 var smallfilesize = flag.Int64("smallfilesize", 64*1024, "Size to consider a small file")
@@ -29,6 +30,7 @@ type NullWalker struct {
 	smallfiles int64
 	largefiles int64
 }
+
 func (n *NullWalker) SmallFile(filename string, alldata []byte) {
 	n.smallfiles += 1
 }
@@ -44,6 +46,7 @@ type PrintWalker struct {
 	NullWalker
 	obuf io.Writer
 }
+
 func (p *PrintWalker) PrintFile(filename string) {
 	fmt.Fprintln(p.obuf, filename)
 }
@@ -61,6 +64,7 @@ type SizeWalker struct {
 	NullWalker
 	obuf io.Writer
 }
+
 func (s *SizeWalker) SizeFile(filename string, size int64) {
 	fmt.Fprintf(s.obuf, "%s: %d\n", filename, size)
 }
@@ -82,6 +86,7 @@ func (s *SizeWalker) LargeFile(filename string) {
 type ReadWalker struct {
 	NullWalker
 }
+
 func (r *ReadWalker) SmallFile(filename string, alldata []byte) {
 	r.NullWalker.SmallFile(filename, alldata)
 }
@@ -98,6 +103,7 @@ type HashWalker struct {
 	NullWalker
 	obuf io.Writer
 }
+
 func (h *HashWalker) HashedFile(filename string, digest isolated.HexDigest) {
 	fmt.Fprintf(h.obuf, "%s: %v\n", filename, digest)
 }
@@ -122,7 +128,7 @@ func main() {
 
 	var stats *NullWalker
 	var obs dirtools.WalkObserver
-	switch(*do) {
+	switch *do {
 	case "nothing":
 		o := &NullWalker{}
 		stats = o
@@ -151,7 +157,7 @@ func main() {
 		stats.smallfiles = 0
 		stats.largefiles = 0
 
-		switch(*method) {
+		switch *method {
 		case "simple":
 			dirtools.WalkBasic(*dir, *smallfilesize, obs)
 		case "nostat":

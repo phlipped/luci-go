@@ -10,19 +10,19 @@ WARNING: THIS FUNCTION IS SLOWER THAN THE NON-PARALLEL VERSION!
 package dirtools
 
 import (
+	"github.com/eapache/channels"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
 	"sync/atomic"
-	"github.com/eapache/channels"
 )
 
 type fileQueue struct {
-	queued uint64
+	queued   uint64
 	finished uint64
-	items channels.Channel
-	waiton chan bool
+	items    channels.Channel
+	waiton   chan bool
 }
 
 func (q *fileQueue) add(s string) {
@@ -43,7 +43,6 @@ func (q *fileQueue) wait() {
 	<-q.waiton
 }
 
-
 func examinePath(queue *fileQueue, smallfile_limit int64, obs WalkObserver) {
 	for ipath := range queue.items.Out() {
 		path := ipath.(string)
@@ -61,12 +60,12 @@ func examinePath(queue *fileQueue, smallfile_limit int64, obs WalkObserver) {
 			}
 
 			dircontents, err := f.Readdirnames(-1)
-			if (err != nil) {
+			if err != nil {
 				obs.Error(path, err)
 			}
 			sort.Strings(dircontents)
 			for _, name := range dircontents {
-                fname := filepath.Join(path, name)
+				fname := filepath.Join(path, name)
 				queue.add(fname)
 			}
 		} else {
@@ -89,7 +88,7 @@ func examinePath(queue *fileQueue, smallfile_limit int64, obs WalkObserver) {
 }
 
 func WalkParallel(root string, smallfile_limit int64, obs WalkObserver) {
-	queue := fileQueue{queued:0, finished:0, items: channels.NewInfiniteChannel(), waiton: make(chan bool)}
+	queue := fileQueue{queued: 0, finished: 0, items: channels.NewInfiniteChannel(), waiton: make(chan bool)}
 
 	for w := 0; w <= 10; w++ {
 		go examinePath(&queue, smallfile_limit, obs)
