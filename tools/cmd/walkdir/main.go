@@ -44,7 +44,7 @@ func (n *NullWalker) LargeFile(filename string) {
 	atomic.AddUint64(&n.largefiles, 1)
 }
 func (n *NullWalker) Error(pathname string, err error) {
-	log.Fatal("%s:%s", pathname, err)
+	log.Fatalf("%s:%s", pathname, err)
 }
 func (n *NullWalker) Finished() {
 }
@@ -214,7 +214,7 @@ func main() {
 	flag.Parse()
 
 	if _, err := os.Stat(*dir); err != nil {
-		log.Fatal("Directory not found: %s", err)
+		log.Fatalf("Directory not found: %s", err)
 	}
 
 	var stats *NullWalker
@@ -245,7 +245,7 @@ func main() {
 		stats = &o.NullWalker
 		obs = o
 	default:
-		log.Fatal("Invalid action '%s'", *do)
+		log.Fatalf("Invalid action '%s'", *do)
 	}
 
 	for i := 0; i < *repeat; i++ {
@@ -260,7 +260,7 @@ func main() {
 		case "parallel":
 			dirtools.WalkParallel(*dir, *smallfilesize, obs)
 		default:
-			log.Fatal("Invalid walk method '%s'", *method)
+			log.Fatalf("Invalid walk method '%s'", *method)
 		}
 		fmt.Printf("Found %d small files and %d large files\n", stats.smallfiles, stats.largefiles)
 	}
