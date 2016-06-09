@@ -5,21 +5,21 @@
 package main
 
 import (
-	"os"
-	"fmt"
-	"log"
-	"flag"
-	"math/rand"
-	"io/ioutil"
 	"encoding/json"
+	"flag"
+	"fmt"
 	"github.com/luci/luci-go/common/dirtools"
+	"io/ioutil"
+	"log"
+	"math/rand"
+	"os"
 )
 
 type TestSettings struct {
-	Name string
+	Name    string
 	Comment string
-	Seed int64
-	Tree dirtools.TreeSettings
+	Seed    int64
+	Tree    dirtools.TreeSettings
 }
 
 var config = flag.String("config", "", "JSON config file for generating test file.")
@@ -33,7 +33,7 @@ func main() {
 	var settings TestSettings
 	settings.Seed = *seed
 
-    configdata, err := ioutil.ReadFile(*config)
+	configdata, err := ioutil.ReadFile(*config)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -60,13 +60,13 @@ func main() {
 		}
 	}
 
-	if (*seed != 4 && settings.Seed != *seed) {
+	if *seed != 4 && settings.Seed != *seed {
 		log.Fatal("Seed supplied by test config.")
 	}
 
 	r := rand.New(rand.NewSource(settings.Seed))
 
-    // Create the root directory
+	// Create the root directory
 	if err := os.MkdirAll(*outdir, 0755); err != nil {
 		log.Fatal(err)
 	}

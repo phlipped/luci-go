@@ -7,23 +7,23 @@ package dirtools
 // Tools for generating test directories.
 
 import (
-    "math/rand"
-	"os"
-	"log"
-	"path"
 	"fmt"
 	"github.com/dustin/go-humanize"
+	"log"
+	"math/rand"
+	"os"
+	"path"
 )
 
 func min(a uint64, b uint64) uint64 {
-	if (a > b) {
+	if a > b {
 		return b
 	} else {
 		return a
 	}
 }
 func max(a uint64, b uint64) uint64 {
-	if (a < b) {
+	if a < b {
 		return b
 	} else {
 		return a
@@ -43,30 +43,31 @@ func randStr(r *rand.Rand, length uint64, runes []rune) string {
 }
 
 func randBetween(r *rand.Rand, min uint64, max uint64) uint64 {
-	if (min == max) {
+	if min == max {
 		return min
 	}
-	return uint64(r.Int63n(int64(max - min))) + min
+	return uint64(r.Int63n(int64(max-min))) + min
 }
-
 
 // FIXME: Maybe some UTF-8 characters?
 var filenameChars = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-")
+
 func filenameRandom(r *rand.Rand, length uint64) string {
 	return randStr(r, length, filenameChars)
 }
 
 type DirGen interface {
-    Create(seed uint64, num int)
+	Create(seed uint64, num int)
 }
 
 type FileType int
+
 const (
-	FILETYPE_BIN_RAND FileType = iota	// Truly random binary data (totally uncompressible)
-	FILETYPE_TXT_RAND					// Truly random text data (mostly uncompressible)
-	FILETYPE_BIN_REPEAT					// Repeated binary data (compressible)
-	FILETYPE_TXT_REPEAT					// Repeated text data (very compressible)
-    FILETYPE_TXT_LOREM					// Lorem Ipsum txt data (very compressible)
+	FILETYPE_BIN_RAND   FileType = iota // Truly random binary data (totally uncompressible)
+	FILETYPE_TXT_RAND                   // Truly random text data (mostly uncompressible)
+	FILETYPE_BIN_REPEAT                 // Repeated binary data (compressible)
+	FILETYPE_TXT_REPEAT                 // Repeated text data (very compressible)
+	FILETYPE_TXT_LOREM                  // Lorem Ipsum txt data (very compressible)
 
 	FILETYPE_MAX
 )
@@ -91,7 +92,7 @@ const (
 
 	// Maximum 4k long repeated sequences
 	SEQUENCE_MINSIZE uint64 = 16
-    SEQUENCE_MAXSIZE uint64 = 4*1024
+	SEQUENCE_MAXSIZE uint64 = 4 * 1024
 )
 
 func writeFile(r *rand.Rand, filename string, filetype FileType, filesize uint64) {
@@ -99,11 +100,11 @@ func writeFile(r *rand.Rand, filename string, filetype FileType, filesize uint64
 	if err != nil {
 		log.Fatal(err)
 	}
-    defer f.Close()
+	defer f.Close()
 
 	var written uint64 = 0
 	for written < filesize {
-		content := make([]byte, min(filesize - written, BLOCKSIZE))
+		content := make([]byte, min(filesize-written, BLOCKSIZE))
 
 		// Generate a block of content
 		switch filetype {
@@ -125,7 +126,7 @@ func writeFile(r *rand.Rand, filename string, filetype FileType, filesize uint64
 			r.Read(sequence)
 
 			for i := range content {
-				content[i] = sequence[i % len(sequence)]
+				content[i] = sequence[i%len(sequence)]
 			}
 
 		case FILETYPE_TXT_REPEAT, FILETYPE_TXT_LOREM:
@@ -141,7 +142,7 @@ func writeFile(r *rand.Rand, filename string, filetype FileType, filesize uint64
 			}
 
 			for i := range content {
-				content[i] = sequence[i % len(sequence)]
+				content[i] = sequence[i%len(sequence)]
 			}
 		}
 		f.Write(content)
@@ -169,7 +170,7 @@ func GenerateFiles(r *rand.Rand, dir string, num uint64, filesize_min uint64, fi
 		filetype := FileType(r.Intn(int(FILETYPE_MAX)))
 		filesize := randBetween(r, filesize_min, filesize_max)
 
-		if (num < 1000) {
+		if num < 1000 {
 			fmt.Printf("File: %-40s %-20s (%s)\n", filename, filetype.String(), humanize.Bytes(filesize))
 		}
 		writeFile(r, filepath, filetype, filesize)
@@ -191,7 +192,7 @@ func GenerateDirs(r *rand.Rand, dir string, num uint64) []string {
 			}
 		}
 
-		if err := os.MkdirAll(dirpath,0755); err != nil {
+		if err := os.MkdirAll(dirpath, 0755); err != nil {
 			log.Fatal(err)
 		}
 		result = append(result, dirpath)
@@ -202,24 +203,24 @@ func GenerateDirs(r *rand.Rand, dir string, num uint64) []string {
 type FileSettings struct {
 	MinNumber uint64
 	MaxNumber uint64
-	MinSize uint64
-	MaxSize uint64
+	MinSize   uint64
+	MaxSize   uint64
 }
 
 type DirSettings struct {
-	Number []uint64
+	Number       []uint64
 	MinFileDepth uint64
 }
 
 type TreeSettings struct {
 	Files []FileSettings
-	Dir DirSettings
+	Dir   DirSettings
 }
 
 func generateTreeInternal(r *rand.Rand, dir string, depth uint64, settings *TreeSettings) {
 	fmt.Printf("%04d:%s -->\n", depth, dir)
 	// Generate the files in this directory
-	if (depth >= settings.Dir.MinFileDepth) {
+	if depth >= settings.Dir.MinFileDepth {
 		for _, files := range settings.Files {
 			numfiles := randBetween(r, files.MinNumber, files.MaxNumber)
 			fmt.Printf("%04d:%s: Generating %d files (between %s and %s)\n", depth, dir, numfiles, humanize.Bytes(files.MinSize), humanize.Bytes(files.MaxSize))
@@ -228,7 +229,7 @@ func generateTreeInternal(r *rand.Rand, dir string, depth uint64, settings *Tree
 	}
 
 	// Generate another depth of directories
-	if (depth < uint64(len(settings.Dir.Number))) {
+	if depth < uint64(len(settings.Dir.Number)) {
 		numdirs := settings.Dir.Number[depth]
 		fmt.Printf("%04d:%s: Generating %d directories\n", depth, dir, numdirs)
 		for _, childpath := range GenerateDirs(r, dir, numdirs) {
