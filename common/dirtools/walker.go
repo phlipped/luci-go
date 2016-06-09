@@ -43,6 +43,10 @@ func WalkBasic(root string, smallfile_limit int64, obs WalkObserver) {
 			return nil
 		}
 
+		if info.IsDir() {
+			return nil
+		}
+
 		if info.Size() < smallfile_limit {
 			data, err := ioutil.ReadFile(path)
 			if err != nil {

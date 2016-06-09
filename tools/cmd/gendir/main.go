@@ -4,11 +4,12 @@
 
 package main
 
+// Quick tool for generating directories to walk.
+
 import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/luci/luci-go/common/dirtools"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -19,13 +20,13 @@ type TestSettings struct {
 	Name    string
 	Comment string
 	Seed    int64
-	Tree    dirtools.TreeSettings
+	Tree    TreeSettings
 }
 
 var config = flag.String("config", "", "JSON config file for generating test file.")
 var outdir = flag.String("outdir", "", "Where to write the output.")
 var remove = flag.Bool("remove", false, "Remove the directory if it exists.")
-var seed = flag.Int("seed", 4, "Seed for random.")
+var seed = flag.Int64("seed", 4, "Seed for random.")
 
 func main() {
 	flag.Parse()
@@ -71,5 +72,5 @@ func main() {
 		log.Fatal(err)
 	}
 
-	dirtools.GenerateTree(r, *outdir, &settings.Tree)
+	GenerateTree(r, *outdir, &settings.Tree)
 }
