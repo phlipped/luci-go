@@ -8,11 +8,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/dustin/go-humanize"
 	"log"
 	"math/rand"
 	"os"
 	"path"
+
+	"github.com/dustin/go-humanize"
 )
 
 func min(a uint64, b uint64) uint64 {

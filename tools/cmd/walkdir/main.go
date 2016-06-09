@@ -9,12 +9,13 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/luci/luci-go/common/dirtools"
-	"github.com/luci/luci-go/common/isolated"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
+
+	"github.com/luci/luci-go/common/dirtools"
+	"github.com/luci/luci-go/common/isolated"
 )
 
 var method = flag.String("method", "simple", "Method used to walk the tree")

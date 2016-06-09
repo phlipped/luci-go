@@ -10,12 +10,13 @@ WARNING: THIS FUNCTION IS SLOWER THAN THE NON-PARALLEL VERSION!
 package dirtools
 
 import (
-	"github.com/eapache/channels"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
 	"sync/atomic"
+
+	"github.com/eapache/channels"
 )
 
 type fileQueue struct {
