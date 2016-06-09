@@ -12,8 +12,8 @@
 			{
 				"MinNumber":0,
 				"MaxNumber":10,
-				"MinSize":100000000,
-				"MaxSize":1000000000
+				"MinSize":10000000,
+				"MaxSize":250000000
 			}
 		],
 		"Dir": {
