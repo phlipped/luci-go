@@ -135,7 +135,7 @@ type ParallelHashWalker struct {
 	NullWalker
 	obuf     io.Writer
 	workers  int
-	queue    chan ToHash
+	queue    *chan ToHash
 	finished chan bool
 }
 
@@ -178,27 +178,36 @@ func CreateParallelHashWalker(obuf io.Writer) *ParallelHashWalker {
 		// FIXME: Warn
 	}
 
-	h := ParallelHashWalker{obuf: obuf, workers: max, queue: make(chan ToHash, max), finished: make(chan bool)}
-
-	for i := 0; i < h.workers; i++ {
-		go ParallelHashWalkerWorker(i, obuf, h.queue, h.finished)
-	}
+	h := ParallelHashWalker{obuf: obuf, workers: max, finished: make(chan bool)}
 	return &h
+}
+func (h *ParallelHashWalker) Init() {
+	if h.queue == nil {
+		q := make(chan ToHash, h.workers)
+		h.queue = &q
+		for i := 0; i < h.workers; i++ {
+			go ParallelHashWalkerWorker(i, h.obuf, *h.queue, h.finished)
+		}
+	}
 }
 func (h *ParallelHashWalker) SmallFile(filename string, alldata []byte) {
 	h.NullWalker.SmallFile(filename, alldata)
-	h.queue <- ToHash{filename: filename, hasdata: true, data: alldata}
+	h.Init()
+	*h.queue <- ToHash{filename: filename, hasdata: true, data: alldata}
 }
 func (h *ParallelHashWalker) LargeFile(filename string) {
 	h.NullWalker.LargeFile(filename)
-	h.queue <- ToHash{filename: filename, hasdata: false}
+	h.Init()
+	*h.queue <- ToHash{filename: filename, hasdata: false}
 }
 func (h *ParallelHashWalker) Finished() {
-	close(h.queue)
+	h.Init()
+	close(*h.queue)
 	for i := 0; i < h.workers; i++ {
 		<-h.finished
 	}
 	fmt.Fprintln(h.obuf, "All workers finished.")
+	h.queue = nil
 }
 
 func main() {
