@@ -12,9 +12,9 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"sync/atomic"
-	"runtime"
 	"os"
+	"runtime"
+	"sync/atomic"
 
 	"github.com/dustin/go-humanize"
 	"github.com/luci/luci-go/common/dirtools"
@@ -128,16 +128,17 @@ func (h *HashWalker) LargeFile(filename string) {
 // Walker which hashes using a worker tool
 type ToHash struct {
 	filename string
-	hasdata bool
-	data []byte
+	hasdata  bool
+	data     []byte
 }
 type ParallelHashWalker struct {
 	NullWalker
-	obuf io.Writer
-	workers int
-	queue chan ToHash
+	obuf     io.Writer
+	workers  int
+	queue    chan ToHash
 	finished chan bool
 }
+
 func ParallelHashWalkerWorker(name int, obuf io.Writer, queue <-chan ToHash, finished chan<- bool) {
 	fmt.Fprintf(obuf, "Starting hash worker %d\n", name)
 
@@ -160,7 +161,7 @@ func ParallelHashWalkerWorker(name int, obuf io.Writer, queue <-chan ToHash, fin
 	fmt.Fprintf(obuf, "Finished hash worker %d (hashed %d files, %s)\n", name, filecount, humanize.Bytes(bytecount))
 	finished <- true
 }
-func CreateParallelHashWalker(obuf io.Writer) (*ParallelHashWalker) {
+func CreateParallelHashWalker(obuf io.Writer) *ParallelHashWalker {
 	var max int = *maxworkers
 
 	maxProcs := runtime.GOMAXPROCS(0)
